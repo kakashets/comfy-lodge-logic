@@ -1,13 +1,20 @@
 import { AppShell } from "@/components/layout/AppShell";
-import { rooms, STATUS_META, reservations, guestById } from "@/lib/hotel-data";
+import { useRooms, useReservations, useGuests, guestById } from "@/hooks/use-hotel";
+import { STATUS_META } from "@/lib/hotel-data";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Users } from "lucide-react";
+import { Users, Loader2 } from "lucide-react";
 
 const today = new Date().toISOString().slice(0, 10);
 
 export default function Rooms() {
+  const { data: rooms = [], isLoading } = useRooms();
+  const { data: reservations = [] } = useReservations();
+  const { data: guests = [] } = useGuests();
+
+  if (isLoading) return <AppShell title="Rooms"><div className="grid place-items-center h-64"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div></AppShell>;
+
   const byFloor = rooms.reduce<Record<number, typeof rooms>>((acc, r) => {
     (acc[r.floor] ||= []).push(r); return acc;
   }, {});
@@ -26,7 +33,7 @@ export default function Rooms() {
               {byFloor[floor].map(room => {
                 const meta = STATUS_META[room.status];
                 const currentRes = reservations.find(r => r.roomNumber === room.number && r.status === "checked_in" && r.checkIn <= today && r.checkOut >= today);
-                const guest = currentRes ? guestById(currentRes.guestId) : null;
+                const guest = currentRes ? guestById(guests, currentRes.guestId) : null;
                 return (
                   <Card key={room.number} className="p-4 shadow-soft hover:shadow-elevated transition-shadow">
                     <div className="flex items-start justify-between">

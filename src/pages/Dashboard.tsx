@@ -1,8 +1,9 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { reservations, guestById, rooms, RES_STATUS_META, STATUS_META, nightsBetween } from "@/lib/hotel-data";
-import { ArrowDownToLine, ArrowUpFromLine, BedDouble, DollarSign, TrendingUp } from "lucide-react";
+import { useReservations, useGuests, useRooms, guestById } from "@/hooks/use-hotel";
+import { RES_STATUS_META, STATUS_META, nightsBetween } from "@/lib/hotel-data";
+import { ArrowDownToLine, ArrowUpFromLine, BedDouble, DollarSign, TrendingUp, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const today = new Date().toISOString().slice(0, 10);
@@ -27,10 +28,18 @@ function StatCard({ icon: Icon, label, value, hint, accent }: { icon: any; label
 }
 
 export default function Dashboard() {
+  const { data: reservations = [], isLoading: l1 } = useReservations();
+  const { data: guests = [], isLoading: l2 } = useGuests();
+  const { data: rooms = [], isLoading: l3 } = useRooms();
+
+  if (l1 || l2 || l3) {
+    return <AppShell title="Dashboard"><div className="grid place-items-center h-64"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div></AppShell>;
+  }
+
   const arrivals = reservations.filter(r => r.checkIn === today);
   const departures = reservations.filter(r => r.checkOut === today);
   const inHouse = reservations.filter(r => r.status === "checked_in");
-  const occupancy = Math.round((inHouse.length / rooms.length) * 100);
+  const occupancy = rooms.length ? Math.round((inHouse.length / rooms.length) * 100) : 0;
   const todayRevenue = inHouse.reduce((s, r) => s + r.ratePerNight, 0);
 
   return (
@@ -48,11 +57,11 @@ export default function Dashboard() {
           <CardContent className="space-y-2">
             {arrivals.length === 0 && <p className="text-sm text-muted-foreground">No arrivals scheduled.</p>}
             {arrivals.map(r => {
-              const g = guestById(r.guestId)!;
+              const g = guestById(guests, r.guestId);
               return (
                 <div key={r.id} className="flex items-center justify-between p-3 rounded-lg border bg-background">
                   <div>
-                    <div className="font-medium">{g.name} {g.vip && <Badge className="ml-1 bg-accent text-accent-foreground">VIP</Badge>}</div>
+                    <div className="font-medium">{g?.name ?? "—"} {g?.vip && <Badge className="ml-1 bg-accent text-accent-foreground">VIP</Badge>}</div>
                     <div className="text-xs text-muted-foreground">Room {r.roomNumber} · {nightsBetween(r.checkIn, r.checkOut)} nights · {r.adults}A {r.children}C</div>
                   </div>
                   <Badge variant="outline" className={RES_STATUS_META[r.status].className}>{RES_STATUS_META[r.status].label}</Badge>
@@ -65,14 +74,15 @@ export default function Dashboard() {
         <Card className="shadow-soft">
           <CardHeader className="pb-3"><CardTitle className="text-base">In-house guests</CardTitle></CardHeader>
           <CardContent className="space-y-2">
+            {inHouse.length === 0 && <p className="text-sm text-muted-foreground">No guests in house.</p>}
             {inHouse.map(r => {
-              const g = guestById(r.guestId)!;
+              const g = guestById(guests, r.guestId);
               return (
                 <div key={r.id} className="flex items-center justify-between p-3 rounded-lg border bg-background">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-md bg-primary/10 text-primary grid place-items-center text-sm font-semibold">{r.roomNumber}</div>
                     <div>
-                      <div className="font-medium">{g.name}</div>
+                      <div className="font-medium">{g?.name ?? "—"}</div>
                       <div className="text-xs text-muted-foreground">Until {r.checkOut}</div>
                     </div>
                   </div>
@@ -89,7 +99,7 @@ export default function Dashboard() {
           <CardTitle className="text-base flex items-center gap-2"><BedDouble className="w-4 h-4" /> Room status overview</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {(["available","occupied","reserved","dirty","out_of_order"] as const).map(s => {
               const count = rooms.filter(r => r.status === s).length;
               const meta = STATUS_META[s];
