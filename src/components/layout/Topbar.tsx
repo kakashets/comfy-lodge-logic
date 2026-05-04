@@ -1,12 +1,14 @@
-import { Bell, Search, Plus, Menu } from "lucide-react";
+import { Bell, Search, Plus, Menu, LogOut, Shield } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { LayoutDashboard, CalendarRange, BedDouble, Users, Sparkles, BarChart3, Hotel } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-const items = [
+const baseItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/calendar", label: "Tape chart", icon: CalendarRange },
   { to: "/rooms", label: "Rooms", icon: BedDouble },
@@ -17,6 +19,10 @@ const items = [
 ];
 
 export function Topbar({ title }: { title: string }) {
+  const { user, role, signOut } = useAuth();
+  const navigate = useNavigate();
+  const items = role === "admin" ? [...baseItems, { to: "/team", label: "Team", icon: Shield }] : baseItems;
+
   return (
     <header className="h-16 border-b bg-card/60 backdrop-blur px-4 md:px-6 flex items-center gap-3 sticky top-0 z-10">
       <Sheet>
@@ -66,12 +72,28 @@ export function Topbar({ title }: { title: string }) {
         <Button variant="ghost" size="icon" aria-label="Notifications">
           <Bell className="w-4 h-4" />
         </Button>
-        <Button className="gap-2 bg-primary hover:bg-primary/90 hidden sm:inline-flex">
-          <Plus className="w-4 h-4" /> New booking
-        </Button>
-        <Button size="icon" className="sm:hidden bg-primary hover:bg-primary/90" aria-label="New booking">
-          <Plus className="w-4 h-4" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2 max-w-[180px]">
+              <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground grid place-items-center text-xs font-semibold shrink-0">
+                {(user?.email ?? "?")[0].toUpperCase()}
+              </span>
+              <span className="truncate hidden sm:inline">{user?.email}</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>
+              <div className="text-xs font-normal text-muted-foreground">Signed in as</div>
+              <div className="truncate">{user?.email}</div>
+              <div className="text-xs font-normal text-muted-foreground capitalize">{role ?? "no access"}</div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {role === "admin" && <DropdownMenuItem onClick={() => navigate("/team")}><Shield className="w-4 h-4 mr-2" />Team</DropdownMenuItem>}
+            <DropdownMenuItem onClick={async () => { await signOut(); navigate("/auth"); }}>
+              <LogOut className="w-4 h-4 mr-2" />Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );
