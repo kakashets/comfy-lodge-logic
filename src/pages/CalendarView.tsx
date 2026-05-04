@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { reservations, rooms, guestById, nightsBetween } from "@/lib/hotel-data";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { useReservations, useRooms, useGuests, guestById } from "@/hooks/use-hotel";
+import { nightsBetween } from "@/lib/hotel-data";
 import { cn } from "@/lib/utils";
 
 const DAYS = 14;
@@ -19,6 +20,10 @@ export default function CalendarView() {
   const startMs = +addDays(start, 0);
   const today = fmt(new Date());
 
+  const { data: rooms = [], isLoading: l1 } = useRooms();
+  const { data: reservations = [], isLoading: l2 } = useReservations();
+  const { data: guests = [] } = useGuests();
+
   const sortedRooms = [...rooms].sort((a, b) => a.floor - b.floor || a.number.localeCompare(b.number));
 
   return (
@@ -28,18 +33,15 @@ export default function CalendarView() {
           <Button variant="outline" size="sm" onClick={() => setStart(addDays(start, -7))}><ChevronLeft className="w-4 h-4" /></Button>
           <Button variant="outline" size="sm" onClick={() => setStart(() => { const d = new Date(); d.setDate(d.getDate() - 1); return d; })}>Today</Button>
           <Button variant="outline" size="sm" onClick={() => setStart(addDays(start, 7))}><ChevronRight className="w-4 h-4" /></Button>
-          <span className="ml-3 text-sm text-muted-foreground">{fmt(days[0])} → {fmt(days[DAYS-1])}</span>
-        </div>
-        <div className="hidden md:flex items-center gap-3 text-xs text-muted-foreground">
-          <Legend color="bg-info" label="Checked in" />
-          <Legend color="bg-booked" label="Confirmed" />
-          <Legend color="bg-muted-foreground/40" label="Checked out" />
+          <span className="ml-3 text-sm text-muted-foreground hidden sm:inline">{fmt(days[0])} → {fmt(days[DAYS-1])}</span>
         </div>
       </div>
 
+      {(l1 || l2) ? (
+        <div className="grid place-items-center h-64"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+      ) : (
       <div className="rounded-lg border bg-card overflow-auto shadow-soft">
         <div className="min-w-[900px]">
-          {/* Header */}
           <div className="grid sticky top-0 z-10 bg-card border-b" style={{ gridTemplateColumns: `120px repeat(${DAYS}, minmax(72px, 1fr))` }}>
             <div className="p-3 text-xs font-medium text-muted-foreground">Room</div>
             {days.map(d => (
@@ -49,7 +51,6 @@ export default function CalendarView() {
             ))}
           </div>
 
-          {/* Rows */}
           {sortedRooms.map(room => {
             const roomRes = reservations.filter(r => r.roomNumber === room.number && r.status !== "cancelled");
             return (
@@ -67,9 +68,9 @@ export default function CalendarView() {
                   const co = +new Date(r.checkOut);
                   const offset = Math.max(0, Math.round((ci - startMs) / 86400000));
                   const span = Math.max(1, Math.round((co - Math.max(ci, startMs)) / 86400000));
-                  if (offset >= DAYS || ci + (co - ci) <= startMs) return null;
+                  if (offset >= DAYS || co <= startMs) return null;
                   const visibleSpan = Math.min(span, DAYS - offset);
-                  const g = guestById(r.guestId)!;
+                  const g = guestById(guests, r.guestId);
                   const color =
                     r.status === "checked_in" ? "bg-info text-info-foreground" :
                     r.status === "confirmed" ? "bg-booked text-booked-foreground" :
@@ -77,14 +78,14 @@ export default function CalendarView() {
                   return (
                     <div
                       key={r.id}
-                      title={`${g.name} · ${r.checkIn} → ${r.checkOut}`}
+                      title={`${g?.name ?? ""} · ${r.checkIn} → ${r.checkOut}`}
                       className={cn("absolute top-2 h-10 rounded-md px-2 text-xs flex items-center font-medium shadow-soft cursor-pointer hover:brightness-110 transition", color)}
                       style={{
                         left: `calc(120px + (100% - 120px) * ${offset} / ${DAYS} + 4px)`,
                         width: `calc((100% - 120px) * ${visibleSpan} / ${DAYS} - 8px)`,
                       }}
                     >
-                      <span className="truncate">{g.name} · {nightsBetween(r.checkIn, r.checkOut)}n</span>
+                      <span className="truncate">{g?.name ?? "Guest"} · {nightsBetween(r.checkIn, r.checkOut)}n</span>
                     </div>
                   );
                 })}
@@ -93,10 +94,7 @@ export default function CalendarView() {
           })}
         </div>
       </div>
+      )}
     </AppShell>
   );
-}
-
-function Legend({ color, label }: { color: string; label: string }) {
-  return <span className="inline-flex items-center gap-1.5"><span className={cn("w-3 h-3 rounded", color)} />{label}</span>;
 }

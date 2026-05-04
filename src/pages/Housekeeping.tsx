@@ -1,23 +1,21 @@
-import { useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { rooms as initialRooms, STATUS_META, RoomStatus } from "@/lib/hotel-data";
+import { useRooms, useUpdateRoomStatus } from "@/hooks/use-hotel";
+import { STATUS_META, RoomStatus } from "@/lib/hotel-data";
 import { cn } from "@/lib/utils";
-import { Sparkles, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Sparkles, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 
 export default function Housekeeping() {
-  const [rooms, setRooms] = useState(initialRooms);
-
-  const setStatus = (number: string, status: RoomStatus) =>
-    setRooms(rs => rs.map(r => r.number === number ? { ...r, status } : r));
+  const { data: rooms = [], isLoading } = useRooms();
+  const update = useUpdateRoomStatus();
 
   const counts = (s: RoomStatus) => rooms.filter(r => r.status === s).length;
 
   return (
     <AppShell title="Housekeeping">
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4 mb-6">
         <Stat icon={CheckCircle2} label="Clean & ready" value={counts("available")} tone="text-success" />
         <Stat icon={Sparkles} label="Needs cleaning" value={counts("dirty")} tone="text-warning" />
         <Stat icon={Sparkles} label="Occupied" value={counts("occupied")} tone="text-info" />
@@ -37,6 +35,7 @@ export default function Housekeeping() {
               </tr>
             </thead>
             <tbody>
+              {isLoading && <tr><td colSpan={5} className="p-8 text-center"><Loader2 className="w-5 h-5 animate-spin inline text-muted-foreground" /></td></tr>}
               {rooms.map(r => {
                 const meta = STATUS_META[r.status];
                 return (
@@ -50,9 +49,9 @@ export default function Housekeeping() {
                       </Badge>
                     </td>
                     <td className="p-3 text-right space-x-1">
-                      <Button size="sm" variant="outline" onClick={() => setStatus(r.number, "available")}>Clean</Button>
-                      <Button size="sm" variant="outline" onClick={() => setStatus(r.number, "dirty")}>Dirty</Button>
-                      <Button size="sm" variant="outline" onClick={() => setStatus(r.number, "out_of_order")}>OOO</Button>
+                      <Button size="sm" variant="outline" disabled={update.isPending} onClick={() => update.mutate({ number: r.number, status: "available" })}>Clean</Button>
+                      <Button size="sm" variant="outline" disabled={update.isPending} onClick={() => update.mutate({ number: r.number, status: "dirty" })}>Dirty</Button>
+                      <Button size="sm" variant="outline" disabled={update.isPending} onClick={() => update.mutate({ number: r.number, status: "out_of_order" })}>OOO</Button>
                     </td>
                   </tr>
                 );

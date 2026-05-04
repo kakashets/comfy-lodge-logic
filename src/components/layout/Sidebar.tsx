@@ -1,8 +1,9 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, CalendarRange, BedDouble, Users, Sparkles, BarChart3, Hotel } from "lucide-react";
+import { LayoutDashboard, CalendarRange, BedDouble, Users, Sparkles, BarChart3, Hotel, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
-const items = [
+const baseItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/calendar", label: "Tape chart", icon: CalendarRange },
   { to: "/rooms", label: "Rooms", icon: BedDouble },
@@ -13,6 +14,9 @@ const items = [
 ];
 
 export function Sidebar() {
+  const { role } = useAuth();
+  const items = role === "admin" ? [...baseItems, { to: "/team", label: "Team", icon: Shield }] : baseItems;
+
   return (
     <aside className="hidden lg:flex w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
       <div className="px-5 h-16 flex items-center gap-2 border-b border-sidebar-border">
@@ -25,7 +29,7 @@ export function Sidebar() {
         </div>
       </div>
       <nav className="p-3 space-y-1 flex-1">
-        {items.map(({ to, label, icon: Icon, end }) => (
+        {items.map(({ to, label, icon: Icon, end }: any) => (
           <NavLink
             key={to}
             to={to}

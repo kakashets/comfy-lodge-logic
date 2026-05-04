@@ -1,19 +1,24 @@
 import { AppShell } from "@/components/layout/AppShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { rooms, reservations, nightsBetween } from "@/lib/hotel-data";
+import { useRooms, useReservations } from "@/hooks/use-hotel";
+import { nightsBetween } from "@/lib/hotel-data";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line } from "recharts";
+import { Loader2 } from "lucide-react";
 
 function addDays(n: number) { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
 
 export default function Reports() {
-  // 14-day occupancy
+  const { data: rooms = [], isLoading: l1 } = useRooms();
+  const { data: reservations = [], isLoading: l2 } = useReservations();
+
+  if (l1 || l2) return <AppShell title="Reports"><div className="grid place-items-center h-64"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div></AppShell>;
+
   const days = Array.from({ length: 14 }, (_, i) => addDays(i - 3));
   const occData = days.map(d => {
     const occupied = reservations.filter(r => r.checkIn <= d && r.checkOut > d && r.status !== "cancelled").length;
-    return { date: d.slice(5), occupancy: Math.round((occupied / rooms.length) * 100), rooms: occupied };
+    return { date: d.slice(5), occupancy: rooms.length ? Math.round((occupied / rooms.length) * 100) : 0, rooms: occupied };
   });
 
-  // Revenue by room type
   const revByType: Record<string, number> = {};
   reservations.forEach(r => {
     const room = rooms.find(rm => rm.number === r.roomNumber);
@@ -23,7 +28,8 @@ export default function Reports() {
   const revData = Object.entries(revByType).map(([type, revenue]) => ({ type, revenue }));
 
   const totalRevenue = Object.values(revByType).reduce((a, b) => a + b, 0);
-  const adr = Math.round(totalRevenue / Math.max(1, reservations.reduce((a, r) => a + nightsBetween(r.checkIn, r.checkOut), 0)));
+  const totalNights = Math.max(1, reservations.reduce((a, r) => a + nightsBetween(r.checkIn, r.checkOut), 0));
+  const adr = Math.round(totalRevenue / totalNights);
   const avgOcc = Math.round(occData.reduce((a, x) => a + x.occupancy, 0) / occData.length);
 
   return (
