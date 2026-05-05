@@ -19,7 +19,7 @@ interface TeamMember {
 }
 
 export default function Team() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [grantEmail, setGrantEmail] = useState("");
@@ -67,6 +67,7 @@ export default function Team() {
   }
 
   async function revoke(uid: string) {
+    if (uid === user?.id) return toast.error("You can't revoke your own access.");
     const { error } = await supabase.from("user_roles").delete().eq("user_id", uid);
     if (error) return toast.error(error.message);
     toast.success("Access revoked");
