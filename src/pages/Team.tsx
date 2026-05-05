@@ -3,12 +3,16 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Loader2, Shield, ShieldOff } from "lucide-react";
+import { Loader2, Shield, ShieldOff, ChevronDown, Info } from "lucide-react";
 import { toast } from "sonner";
 
 interface TeamMember {
@@ -22,9 +26,7 @@ export default function Team() {
   const { role, user } = useAuth();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
-  const [grantEmail, setGrantEmail] = useState("");
-  const [grantRole, setGrantRole] = useState<"admin" | "staff">("staff");
-  const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -52,23 +54,21 @@ export default function Team() {
     );
   }
 
-  async function grant(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    const m = members.find(x => x.email?.toLowerCase() === grantEmail.toLowerCase().trim());
-    if (!m) { setBusy(false); return toast.error("No matching account. Ask the user to sign up first."); }
-    if (m.role) await supabase.from("user_roles").delete().eq("user_id", m.user_id);
-    const { error } = await supabase.from("user_roles").insert({ user_id: m.user_id, role: grantRole });
-    setBusy(false);
+  async function setRole(uid: string, newRole: "admin" | "staff") {
+    setBusyId(uid);
+    await supabase.from("user_roles").delete().eq("user_id", uid);
+    const { error } = await supabase.from("user_roles").insert({ user_id: uid, role: newRole });
+    setBusyId(null);
     if (error) return toast.error(error.message);
-    toast.success(`${m.email} is now ${grantRole}`);
-    setGrantEmail("");
+    toast.success(`Role set to ${newRole}`);
     load();
   }
 
   async function revoke(uid: string) {
     if (uid === user?.id) return toast.error("You can't revoke your own access.");
+    setBusyId(uid);
     const { error } = await supabase.from("user_roles").delete().eq("user_id", uid);
+    setBusyId(null);
     if (error) return toast.error(error.message);
     toast.success("Access revoked");
     load();
@@ -77,17 +77,29 @@ export default function Team() {
   return (
     <AppShell title="Team">
       <Card className="p-5 shadow-soft mb-4">
-        <h2 className="font-semibold mb-3">Grant access</h2>
-        <form onSubmit={grant} className="grid gap-3 sm:grid-cols-[1fr,160px,auto]">
-          <div><Label>User email</Label><Input type="email" required value={grantEmail} onChange={e => setGrantEmail(e.target.value)} placeholder="They must sign up first" /></div>
-          <div><Label>Role</Label>
-            <Select value={grantRole} onValueChange={(v: any) => setGrantRole(v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="staff">Staff</SelectItem><SelectItem value="admin">Admin</SelectItem></SelectContent>
-            </Select>
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-lg bg-muted grid place-items-center shrink-0">
+            <Info className="w-4 h-4 text-muted-foreground" />
           </div>
-          <div className="flex items-end"><Button type="submit" disabled={busy}>{busy && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Grant</Button></div>
-        </form>
+          <div className="space-y-3 text-sm">
+            <h2 className="font-semibold text-base">Roles & permissions</h2>
+            <div className="grid sm:grid-cols-3 gap-3">
+              <div className="rounded-md border p-3">
+                <Badge className="bg-accent text-accent-foreground mb-2"><Shield className="w-3 h-3 mr-1" /> Admin</Badge>
+                <p className="text-muted-foreground">Full access. Can manage rooms, reservations, guests, housekeeping, reports — and grant or revoke team access.</p>
+              </div>
+              <div className="rounded-md border p-3">
+                <Badge variant="outline" className="mb-2">Staff</Badge>
+                <p className="text-muted-foreground">Day-to-day operations: view and edit rooms, reservations, guests and housekeeping. Cannot manage the team.</p>
+              </div>
+              <div className="rounded-md border p-3">
+                <Badge variant="outline" className="text-muted-foreground mb-2"><ShieldOff className="w-3 h-3 mr-1" /> No access</Badge>
+                <p className="text-muted-foreground">Account exists but is locked out. Sees an "awaiting access" screen until an admin grants a role.</p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">New users must sign up first — they then appear below for you to grant access.</p>
+          </div>
+        </div>
       </Card>
 
       <Card className="shadow-soft overflow-hidden">
@@ -98,20 +110,53 @@ export default function Team() {
             </thead>
             <tbody>
               {loading && <tr><td colSpan={4} className="p-6 text-center"><Loader2 className="w-5 h-5 animate-spin inline text-muted-foreground" /></td></tr>}
-              {members.map(m => (
-                <tr key={m.user_id} className="border-t">
-                  <td className="p-3 font-medium">{m.display_name ?? "—"}</td>
-                  <td className="p-3 text-muted-foreground">{m.email}</td>
-                  <td className="p-3">
-                    {m.role === "admin" && <Badge className="bg-accent text-accent-foreground"><Shield className="w-3 h-3 mr-1" /> Admin</Badge>}
-                    {m.role === "staff" && <Badge variant="outline">Staff</Badge>}
-                    {!m.role && <Badge variant="outline" className="text-muted-foreground"><ShieldOff className="w-3 h-3 mr-1" /> No access</Badge>}
-                  </td>
-                  <td className="p-3 text-right">
-                    {m.role && <Button size="sm" variant="outline" onClick={() => revoke(m.user_id)}>Revoke</Button>}
-                  </td>
-                </tr>
-              ))}
+              {members.map(m => {
+                const isMe = m.user_id === user?.id;
+                const busy = busyId === m.user_id;
+                return (
+                  <tr key={m.user_id} className="border-t">
+                    <td className="p-3 font-medium">
+                      {m.display_name ?? "—"}
+                      {isMe && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
+                    </td>
+                    <td className="p-3 text-muted-foreground">{m.email}</td>
+                    <td className="p-3">
+                      {m.role === "admin" && <Badge className="bg-accent text-accent-foreground"><Shield className="w-3 h-3 mr-1" /> Admin</Badge>}
+                      {m.role === "staff" && <Badge variant="outline">Staff</Badge>}
+                      {!m.role && <Badge variant="outline" className="text-muted-foreground"><ShieldOff className="w-3 h-3 mr-1" /> No access</Badge>}
+                    </td>
+                    <td className="p-3 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="outline" disabled={busy}>
+                            {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <>Manage <ChevronDown className="w-3 h-3 ml-1" /></>}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem disabled={m.role === "admin"} onClick={() => setRole(m.user_id, "admin")}>
+                            <Shield className="w-3 h-3 mr-2" /> Make admin
+                          </DropdownMenuItem>
+                          <DropdownMenuItem disabled={m.role === "staff"} onClick={() => setRole(m.user_id, "staff")}>
+                            Make staff
+                          </DropdownMenuItem>
+                          {m.role && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                disabled={isMe}
+                                onClick={() => revoke(m.user_id)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <ShieldOff className="w-3 h-3 mr-2" /> Revoke access
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
