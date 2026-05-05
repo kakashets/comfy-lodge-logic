@@ -56,10 +56,20 @@ export default function Team() {
 
   async function setRole(uid: string, newRole: "admin" | "staff") {
     setBusyId(uid);
-    await supabase.from("user_roles").delete().eq("user_id", uid);
-    const { error } = await supabase.from("user_roles").insert({ user_id: uid, role: newRole });
+    // Insert the new role first so we don't lose admin rights mid-operation
+    // (deleting our own admin row before insert would fail RLS on the insert).
+    const { error: insErr } = await supabase
+      .from("user_roles")
+      .upsert({ user_id: uid, role: newRole }, { onConflict: "user_id,role" });
+    if (insErr) { setBusyId(null); return toast.error(insErr.message); }
+    // Remove any other roles for this user (keep only the new one)
+    const { error: delErr } = await supabase
+      .from("user_roles")
+      .delete()
+      .eq("user_id", uid)
+      .neq("role", newRole);
     setBusyId(null);
-    if (error) return toast.error(error.message);
+    if (delErr) return toast.error(delErr.message);
     toast.success(`Role set to ${newRole}`);
     load();
   }
