@@ -55,6 +55,7 @@ export default function Team() {
   }
 
   async function setRole(uid: string, newRole: "admin" | "staff") {
+    if (uid === user?.id && newRole !== "admin") return toast.error("You can't change your own admin role.");
     setBusyId(uid);
     // Insert the new role first so we don't lose admin rights mid-operation
     // (deleting our own admin row before insert would fail RLS on the insert).
@@ -146,7 +147,7 @@ export default function Team() {
                           <DropdownMenuItem disabled={m.role === "admin"} onClick={() => setRole(m.user_id, "admin")}>
                             <Shield className="w-3 h-3 mr-2" /> Make admin
                           </DropdownMenuItem>
-                          <DropdownMenuItem disabled={m.role === "staff"} onClick={() => setRole(m.user_id, "staff")}>
+                          <DropdownMenuItem disabled={m.role === "staff" || isMe} onClick={() => setRole(m.user_id, "staff")}>
                             Make staff
                           </DropdownMenuItem>
                           {m.role && (
